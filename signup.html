@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Make Your Shop · PropertyBot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap narrow">
+  <header class="brand"><div class="logo"><div class="mark" aria-hidden="true">P</div><div><h1>PropertyBot</h1><p>Apni online property shop · 14 din free</p></div></div></header>
+
+  <section class="panel" id="formBox">
+    <h2>Make my free shop · Apni shop banayein</h2>
+    <p class="sub">One minute. Your customers see your plots, ask questions any time, and message you on WhatsApp.</p>
+    <form id="f" class="stack" autocomplete="on">
+      <label class="f">Business name · Karobar ka naam<input class="in" id="name" required maxlength="80" placeholder="e.g. Ali Estate &amp; Builders"></label>
+      <label class="f">Your WhatsApp number · Aap ka WhatsApp<input class="in" id="wa" required inputmode="tel" placeholder="e.g. 0300 1234567"></label>
+      <label class="f">Your name · Aap ka naam<input class="in" id="agent" maxlength="40" placeholder="e.g. Ali Bhai"></label>
+      <label class="f">City · Shehar<input class="in" id="city" maxlength="40" value="Islamabad"></label>
+      <label class="f">Email (optional, for weekly report)<input class="in" id="email" type="email" inputmode="email" placeholder="optional"></label>
+      <div class="hp" aria-hidden="true"><input id="website" tabindex="-1" autocomplete="off"></div>
+      <button class="btn btn-wa btn-big" type="submit">Make my shop · Shop banayein</button>
+      <div id="msg" aria-live="polite"></div>
+      <p class="note">14 days free. After that a small monthly fee keeps your shop online. No charge per message.</p>
+    </form>
+  </section>
+
+  <section class="panel stack" id="done" hidden>
+    <h2>🎉 Your shop is ready · Shop tayyar hai</h2>
+    <p class="sub">Save these now. Tap the green button to keep them in your own WhatsApp.</p>
+    <div><div class="note">Your PIN · Aap ka PIN</div><div class="pin-big" id="pin"></div></div>
+    <a class="btn btn-wa btn-big" id="saveWa" href="#" target="_blank" rel="noopener">Save links in my WhatsApp</a>
+    <a class="btn btn-accent btn-big" id="goDealer" href="#">Add my plots now · Plots daalein</a>
+    <div class="stack">
+      <label class="f">Link for customers<input class="in" id="shopLink" readonly></label>
+      <div class="row"><button class="btn btn-ghost" id="copy" type="button">Copy link</button><a class="btn btn-ghost" id="view" href="#" target="_blank" rel="noopener">Open my shop</a></div>
+    </div>
+    <p class="note" id="trial"></p>
+  </section>
+  <footer><span>PropertyBot</span><a href="shop.html?d=zeeshan">Example shop</a></footer>
+</div>
+<script src="pb.js"></script>
+<script src="common.js"></script>
+<script>
+(function () {
+  const $ = s => document.querySelector(s);
+  $("#f").addEventListener("submit", async e => {
+    e.preventDefault();
+    const m = $("#msg"), wa = PB.waNumber($("#wa").value), name = $("#name").value.trim();
+    if (!/^92\d{10}$/.test(wa)) { m.className = "err"; m.textContent = "WhatsApp number looks wrong. Example: 0300 1234567"; return; }
+    const btn = e.submitter || $("#f button"); btn.disabled = true; m.className = "note"; m.textContent = "Making your shop…";
+    const r = await PBX.post({ action: "signup", name, whatsapp: wa, agent: $("#agent").value.trim(), city: $("#city").value.trim(), email: $("#email").value.trim(), website: $("#website").value })
+      .catch(() => ({ ok: false, error: "No internet. Try again." }));
+    btn.disabled = false;
+    if (!r.ok) { m.className = "err"; m.textContent = r.error; return; }
+    PBX.store.set("pin_" + r.slug, r.pin);
+    const shop = PBX.shopUrl(r.slug), dealer = PBX.dealerUrl(r.slug);
+    $("#pin").textContent = r.pin;
+    $("#shopLink").value = shop; $("#view").href = shop; $("#goDealer").href = dealer;
+    $("#saveWa").href = PB.waLink(wa, `🏡 Meri PropertyBot shop\n\nCustomers ke liye:\n${shop}\n\nPlots add/sold karne ke liye:\n${dealer}\nPIN: ${r.pin}`);
+    $("#copy").onclick = ev => PBX.copy(shop, ev.currentTarget, "Copy link");
+    $("#trial").textContent = `Free until ${r.paidUntil}. We will remind you on WhatsApp before it ends.`;
+    $("#formBox").hidden = true; $("#done").hidden = false; window.scrollTo(0, 0);
+  });
+})();
+</script>
+</body>
+</html>

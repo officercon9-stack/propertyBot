@@ -26,6 +26,11 @@
   </section>
 
   <div id="app" class="stack" hidden>
+    <section class="panel" id="acct" hidden>
+      <h2>📊 This week · Is hafte</h2>
+      <div class="stats" id="wk"></div>
+      <p class="note" id="plan" style="margin-top:10px"></p>
+    </section>
     <!-- add -->
     <section class="panel">
       <h2>➕ Add properties · Naye plots daalein</h2>
@@ -77,7 +82,7 @@
   if (!slug) { $("#loginMsg").textContent = "This link is missing the shop name. Use the link you were sent."; }
 
   async function call(body) {
-    try { const r = await PBX.post(Object.assign({ d: slug, pin }, body)); if (r.ok && r.dealer) { shop = r; drawMine(); } return r; }
+    try { const r = await PBX.post(Object.assign({ d: slug, pin }, body)); if (r.ok && r.dealer) { shop = r; drawMine(); } if (r.ok && r.account) drawAcct(r.account); return r; }
     catch (e) { return { ok: false, error: "No internet. Try again." }; }
   }
 
@@ -99,6 +104,14 @@
   $("#logout").onclick = () => { PBX.store.del("pin_" + slug); location.reload(); };
   $("#details").addEventListener("submit", async e => { e.preventDefault(); $("#detMsg").textContent = "Saving…"; const r = await call({ action: "updateDealer", agent: $("#agent").value, office: $("#officeIn").value }); $("#detMsg").textContent = r.ok ? "Saved ✓" : r.error; });
 
+  function drawAcct(a) {
+    const w = $("#wk"); w.textContent = "";
+    [[a.week.views, "visits"], [a.week.asks, "questions"], [a.week.wa, "WhatsApp chats"]].forEach(([n, t]) => { const d = el("div"); d.append(el("b", null, String(n)), el("span", null, t)); w.append(d); });
+    const left = a.daysLeft;
+    $("#plan").textContent = a.status === "paused" ? "Your shop is paused. Please pay the monthly fee to switch it back on." :
+      (a.plan === "trial" ? "Free trial" : "Paid") + " until " + a.paidUntil + (left !== null && left <= 3 ? " · " + (left >= 0 ? left + " days left" : "payment late") : "");
+    $("#acct").hidden = false;
+  }
   // ---- my plots
   function drawMine() {
     const box = $("#mine"); box.textContent = "";

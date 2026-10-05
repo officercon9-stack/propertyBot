@@ -12,6 +12,11 @@ window.PBX = {
     const r = await fetch(PB_API, { method: "POST", body: JSON.stringify(body) });
     return r.json();
   },
+  beacon(body) {
+    if (!this.ready()) return;
+    try { if (navigator.sendBeacon && navigator.sendBeacon(PB_API, JSON.stringify(body))) return; } catch (e) {}
+    fetch(PB_API, { method: "POST", body: JSON.stringify(body), keepalive: true }).catch(() => {});
+  },
   el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; },
   base() { return location.href.replace(/[^/]*([?#].*)?$/, ""); },
   shopUrl(slug) { return this.base() + "shop.html?d=" + slug; },

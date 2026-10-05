@@ -89,3 +89,10 @@ footer{margin-top:28px;color:var(--muted);font-size:.85rem;display:flex;flex-wra
 .loading{color:var(--muted);padding:40px 0;text-align:center}
 @media (prefers-reduced-motion:no-preference){.msg{animation:in .18s ease-out}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
 .msg.typing{opacity:.6;letter-spacing:.2em;animation:pbblink 1s infinite}@keyframes pbblink{50%{opacity:.25}}
+.pin-big{font:700 2.2rem/1 var(--display);letter-spacing:.25em;text-align:center;padding:14px;border:2px dashed var(--accent);border-radius:14px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stats div{background:var(--sunk);border-radius:12px;padding:10px;text-align:center}
+.stats b{display:block;font:700 1.4rem/1.1 var(--display)}
+.stats span{font-size:.78rem;color:var(--muted)}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.mini-in.wide{width:90px}

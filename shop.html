@@ -55,6 +55,14 @@
   try { data = await PBX.get(slug); } catch (e) { data = { ok: false, error: "Could not load. Check your internet and refresh." }; }
   if (!data.ok) { $("#main").textContent = data.error === "Shop not found" ? "This shop link is not correct." : data.error; $("#dName").textContent = "PropertyBot"; return; }
   const D = data.dealer, plots = data.plots;
+  if (data.paused) {
+    $("#dName").textContent = D.name; document.title = D.name;
+    $("#main").textContent = "This shop is being updated. Please contact the dealer on WhatsApp.";
+    $("#topWa").href = PB.waLink(D.whatsapp, "Assalam o Alaikum, I want to know about your properties.");
+    return;
+  }
+  PBX.beacon({ action: "stat", d: slug, k: "views" });
+  document.addEventListener("click", e => { const a = e.target.closest && e.target.closest('a[href^="https://wa.me"]'); if (a) PBX.beacon({ action: "stat", d: slug, k: "wa" }); });
   D.agent = D.agent || D.name;
   document.title = D.name;
   $("#dName").textContent = D.name;
@@ -87,6 +95,7 @@
   const hist = [];
   async function ask(t) {
     t = t.trim(); if (!t) return; log.append(el("div", "msg me", t)); log.scrollTop = log.scrollHeight;
+    PBX.beacon({ action: "stat", d: slug, k: "asks" });
     const r = PB.reply(t, state, D, plots); state = r.state; if (r.plots.length) last = r.plots;
     if ((r.unknown || r.complex) && PBX.ready()) {
       const wait = el("div", "msg bot typing", "…"); log.append(wait); log.scrollTop = log.scrollHeight;

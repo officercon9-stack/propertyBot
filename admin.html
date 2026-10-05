@@ -23,6 +23,18 @@
 
   <div id="app" class="stack" hidden>
     <section class="panel">
+      <h2>📈 This month</h2>
+      <div class="stats" id="sum"></div>
+    </section>
+    <section class="panel">
+      <h2>📣 Dealer sign-up link</h2>
+      <p class="sub">Send this to any dealer. He makes his own shop in one minute and you get an email.</p>
+      <div class="stack">
+        <input class="in" id="suLink" readonly aria-label="Sign-up link">
+        <div class="row"><button class="btn btn-accent" id="suCopy" type="button">Copy link</button><a class="btn btn-wa" id="suWa" href="#" target="_blank" rel="noopener">Share on WhatsApp</a></div>
+      </div>
+    </section>
+    <section class="panel">
       <h2>➕ New dealer</h2>
       <p class="sub">Fill this in front of the dealer. His shop is ready in a minute.</p>
       <form id="addForm" class="stack">
@@ -61,6 +73,10 @@
     const r = await PBX.post({ action: "adminList", admin }).catch(() => ({ ok: false, error: "No internet" }));
     if (!r.ok) { $("#loginMsg").textContent = r.error; return false; }
     PBX.store.set("admin_pin", admin); $("#login").hidden = true; $("#app").hidden = false;
+    const ds = r.dealers, paid = ds.filter(d => d.plan === "paid" && d.status !== "paused").length, due = ds.filter(d => d.daysLeft !== null && d.daysLeft <= 3).length;
+    const sum = $("#sum"); sum.textContent = "";
+    [["Rs " + (r.income || 0).toLocaleString("en-PK"), "collected"], [paid + " / " + ds.length, "paying shops"], [due, "due in 3 days"]].forEach(([n, t]) => { const d = el("div"); d.append(el("b", null, String(n)), el("span", null, t)); sum.append(d); });
+    ds.sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
     $("#aiState").textContent = r.ai ? "ON" : "OFF"; $("#aiLimit").value = r.aiLimit || 60;
     const box = $("#list"); box.textContent = "";
     if (!r.dealers.length) box.append(el("div", "empty", "No dealers yet. Add the first one above."));
@@ -70,15 +86,28 @@
   function welcome(d, pin) {
     return `Assalam o Alaikum ${d.agent || d.name}!\nAap ki online property shop tayyar hai 🎉\n\n🏡 Customers ke liye link:\n${PBX.shopUrl(d.slug)}\n\n🔑 Plots add/sold karne ke liye:\n${PBX.dealerUrl(d.slug)}\nPIN: ${pin}\n\nApni WhatsApp wali plot list wahan paste karein, shop khud update ho jayegi.`;
   }
+  function link(cls, text, href) { const a = el("a", "btn " + cls, text); a.href = href; a.target = "_blank"; a.rel = "noopener"; return a; }
   function dealerCard(d) {
-    const c = el("div", "card"); c.style.gridTemplateColumns = "minmax(0,1fr)";
-    c.append(el("div", "size", d.name), el("div", "note", `${d.plots} available · /${d.slug} · PIN ${d.pin} · WhatsApp ${d.whatsapp}`));
+    const c = el("div", "card" + (d.status === "paused" ? " sold" : "")); c.style.gridTemplateColumns = "minmax(0,1fr)";
+    const left = d.daysLeft;
+    const due = d.status === "paused" ? "PAUSED (unpaid)" : (d.plan === "trial" ? "Trial" : "Paid") + " until " + d.paidUntil + (left !== null && left <= 3 ? (left >= 0 ? ` · ${left} days left` : ` · ${-left} days late`) : "");
+    c.append(el("div", "size", d.name + (d.source === "signup" ? " · signed up himself" : "")), el("div", left !== null && left <= 3 ? "err" : "note", due),
+      el("div", "note", `${d.plots} plots · this week ${d.week.views} visits, ${d.week.asks} questions, ${d.week.wa} WhatsApp · PIN ${d.pin} · +${d.whatsapp}`));
     const r = el("div", "row");
-    const s = el("a", "btn btn-ghost", "Shop"); s.href = PBX.shopUrl(d.slug); s.target = "_blank"; s.rel = "noopener";
-    const m = el("a", "btn btn-ghost", "Dealer page"); m.href = PBX.dealerUrl(d.slug); m.target = "_blank"; m.rel = "noopener";
-    const w = el("a", "btn btn-wa", "Send links to dealer"); w.href = PB.waLink(d.whatsapp, welcome(d, d.pin)); w.target = "_blank"; w.rel = "noopener";
-    r.append(s, m, w); c.append(r); return c;
+    const amt = el("input", "mini-in wide"); amt.placeholder = "Rs"; amt.inputMode = "numeric"; amt.value = d.fee || ""; amt.setAttribute("aria-label", "Amount paid");
+    const pay = el("button", "btn btn-accent", "Paid 1 month"); pay.type = "button";
+    pay.onclick = async () => { pay.disabled = true; pay.textContent = "…"; const x = await PBX.post({ action: "adminPaid", admin, slug: d.slug, months: 1, amount: +amt.value || 0 }).catch(() => ({ ok: false, error: "No internet" })); if (!x.ok) { pay.disabled = false; pay.textContent = x.error; return; } load(); };
+    const remindTxt = `Assalam o Alaikum ${d.agent || d.name}! Aap ki PropertyBot shop ${left !== null && left < 0 ? "ki payment pending hai" : "ki renewal " + d.paidUntil + " ko hai"}. Shop chalti rahe, is liye monthly payment kar dein. Shukriya!`;
+    const tog = el("button", "btn btn-ghost", d.status === "paused" ? "Switch on" : "Pause"); tog.type = "button";
+    tog.onclick = async () => { tog.disabled = true; await PBX.post({ action: "adminStatus", admin, slug: d.slug, status: d.status === "paused" ? "active" : "paused" }).catch(() => {}); load(); };
+    r.append(amt, pay, link("btn-wa", "Remind", PB.waLink(d.whatsapp, remindTxt)), tog);
+    const r2 = el("div", "row");
+    r2.append(link("btn-ghost", "Shop", PBX.shopUrl(d.slug)), link("btn-ghost", "Dealer page", PBX.dealerUrl(d.slug)), link("btn-ghost", "Send links", PB.waLink(d.whatsapp, welcome(d, d.pin))));
+    c.append(r, r2); return c;
   }
+  const su = PBX.base() + "signup.html";
+  $("#suLink").value = su; $("#suCopy").onclick = e => PBX.copy(su, e.currentTarget, "Copy link");
+  $("#suWa").href = "https://wa.me/?text=" + encodeURIComponent("🏡 Apni property ki online shop 1 minute mein banayein. 14 din free. Customers 24 ghante sawal pooch sakte hain aur seedha aap ko WhatsApp karte hain:\n" + su);
   $("#loginForm").addEventListener("submit", e => { e.preventDefault(); admin = $("#apin").value.trim(); $("#loginMsg").textContent = "Checking…"; load(); });
   $("#addForm").addEventListener("submit", async e => {
     e.preventDefault();
