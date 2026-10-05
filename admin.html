@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PropertyBot Admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap narrow">
+  <header class="brand"><div class="logo"><div class="mark" aria-hidden="true">P</div><div><h1>PropertyBot Admin</h1><p>Add dealers and see all shops</p></div></div></header>
+
+  <section class="panel" id="login">
+    <h2>Admin PIN</h2>
+    <p class="sub">The first time, type any PIN you want (4+ digits). It becomes your admin PIN.</p>
+    <form id="loginForm" class="stack">
+      <input class="in" id="apin" inputmode="numeric" autocomplete="off" placeholder="Admin PIN" aria-label="Admin PIN">
+      <button class="btn btn-accent btn-big" type="submit">Open</button>
+      <div id="loginMsg" class="err" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <div id="app" class="stack" hidden>
+    <section class="panel">
+      <h2>➕ New dealer</h2>
+      <p class="sub">Fill this in front of the dealer. His shop is ready in a minute.</p>
+      <form id="addForm" class="stack">
+        <label class="f">Business name<input class="in" id="nName" required placeholder="e.g. Ali Estate &amp; Builders"></label>
+        <label class="f">Dealer's WhatsApp number<input class="in" id="nWa" required inputmode="tel" placeholder="e.g. 0300 1234567"></label>
+        <label class="f">City<input class="in" id="nCity" value="Islamabad"></label>
+        <label class="f">Dealer's name (optional)<input class="in" id="nAgent" placeholder="e.g. Ali Bhai"></label>
+        <label class="f">Shop link name (optional)<input class="in" id="nSlug" placeholder="made from the business name"></label>
+        <button class="btn btn-accent btn-big" type="submit">Create shop</button>
+        <div id="addMsg" aria-live="polite"></div>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>🏪 All shops</h2>
+      <div id="list" class="stack"></div>
+    </section>
+  </div>
+</div>
+<script src="pb.js"></script>
+<script src="common.js"></script>
+<script>
+(function () {
+  const { el } = PBX, $ = s => document.querySelector(s);
+  let admin = PBX.store.get("admin_pin");
+  async function load() {
+    const r = await PBX.post({ action: "adminList", admin }).catch(() => ({ ok: false, error: "No internet" }));
+    if (!r.ok) { $("#loginMsg").textContent = r.error; return false; }
+    PBX.store.set("admin_pin", admin); $("#login").hidden = true; $("#app").hidden = false;
+    const box = $("#list"); box.textContent = "";
+    if (!r.dealers.length) box.append(el("div", "empty", "No dealers yet. Add the first one above."));
+    r.dealers.forEach(d => box.append(dealerCard(d)));
+    return true;
+  }
+  function welcome(d, pin) {
+    return `Assalam o Alaikum ${d.agent || d.name}!\nAap ki online property shop tayyar hai 🎉\n\n🏡 Customers ke liye link:\n${PBX.shopUrl(d.slug)}\n\n🔑 Plots add/sold karne ke liye:\n${PBX.dealerUrl(d.slug)}\nPIN: ${pin}\n\nApni WhatsApp wali plot list wahan paste karein, shop khud update ho jayegi.`;
+  }
+  function dealerCard(d) {
+    const c = el("div", "card"); c.style.gridTemplateColumns = "minmax(0,1fr)";
+    c.append(el("div", "size", d.name), el("div", "note", `${d.plots} available · /${d.slug} · PIN ${d.pin} · WhatsApp ${d.whatsapp}`));
+    const r = el("div", "row");
+    const s = el("a", "btn btn-ghost", "Shop"); s.href = PBX.shopUrl(d.slug); s.target = "_blank"; s.rel = "noopener";
+    const m = el("a", "btn btn-ghost", "Dealer page"); m.href = PBX.dealerUrl(d.slug); m.target = "_blank"; m.rel = "noopener";
+    const w = el("a", "btn btn-wa", "Send links to dealer"); w.href = PB.waLink(d.whatsapp, welcome(d, d.pin)); w.target = "_blank"; w.rel = "noopener";
+    r.append(s, m, w); c.append(r); return c;
+  }
+  $("#loginForm").addEventListener("submit", e => { e.preventDefault(); admin = $("#apin").value.trim(); $("#loginMsg").textContent = "Checking…"; load(); });
+  $("#addForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const name = $("#nName").value.trim(), wa = PB.waNumber($("#nWa").value);
+    if (!/^92\d{10}$/.test(wa)) { $("#addMsg").className = "err"; $("#addMsg").textContent = "WhatsApp number looks wrong. Example: 0300 1234567"; return; }
+    $("#addMsg").className = "note"; $("#addMsg").textContent = "Creating…";
+    const r = await PBX.post({ action: "adminAddDealer", admin, name, whatsapp: wa, city: $("#nCity").value.trim(), agent: $("#nAgent").value.trim(), slug: PB.slugify($("#nSlug").value.trim() || name) }).catch(() => ({ ok: false, error: "No internet" }));
+    if (!r.ok) { $("#addMsg").className = "err"; $("#addMsg").textContent = r.error; return; }
+    const d = { slug: r.slug, name, whatsapp: wa, agent: $("#nAgent").value.trim() };
+    $("#addMsg").textContent = "";
+    const ok = el("div", "stack");
+    ok.append(el("div", "ok", `Shop created ✓  PIN: ${r.pin}`));
+    const w = el("a", "btn btn-wa btn-big", "Send shop link + PIN to dealer on WhatsApp"); w.href = PB.waLink(wa, welcome(d, r.pin)); w.target = "_blank"; w.rel = "noopener";
+    ok.append(w); $("#addMsg").append(ok);
+    $("#addForm").reset(); $("#nCity").value = "Islamabad"; load();
+  });
+  if (admin) load();
+})();
+</script>
+</body>
+</html>

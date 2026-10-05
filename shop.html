@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Property Shop</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="brand">
+    <div class="logo">
+      <div class="mark" id="mark" aria-hidden="true">P</div>
+      <div><h1 id="dName">Loading…</h1><p id="dSub"></p></div>
+    </div>
+    <a class="btn btn-wa" id="topWa" href="#" target="_blank" rel="noopener">Chat on WhatsApp</a>
+  </header>
+  <div class="lede" id="lede"></div>
+
+  <div id="main" class="loading">Loading properties…</div>
+  <div class="grid" id="grid" hidden>
+    <section class="chat" aria-label="Property assistant">
+      <div class="chat-head">
+        <h2>Ask about any property</h2>
+        <p>Instant answers in Urdu or English, any time. The dealer takes over on WhatsApp.</p>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="chips" id="chips"></div>
+      <form class="ask" id="ask">
+        <input id="q" aria-label="Your question" autocomplete="off" placeholder="e.g. 10 marla 20 lakh tak?">
+        <button class="btn btn-accent" type="submit">Send</button>
+      </form>
+    </section>
+    <section aria-labelledby="plotsTitle">
+      <div class="plots-head">
+        <h2 id="plotsTitle">Available properties</h2>
+        <div class="filters">
+          <select id="fSize" aria-label="Size"><option value="">All sizes</option></select>
+          <select id="fArea" aria-label="Area"><option value="">All areas</option></select>
+        </div>
+      </div>
+      <div class="cards" id="cards"></div>
+    </section>
+  </div>
+  <footer><span id="office"></span><span>Powered by PropertyBot</span></footer>
+</div>
+<script src="pb.js"></script>
+<script src="common.js"></script>
+<script>
+(async function () {
+  const { el } = PBX, $ = s => document.querySelector(s);
+  const slug = PBX.param("d").toLowerCase();
+  let data;
+  try { data = await PBX.get(slug); } catch (e) { data = { ok: false, error: "Could not load. Check your internet and refresh." }; }
+  if (!data.ok) { $("#main").textContent = data.error === "Shop not found" ? "This shop link is not correct." : data.error; $("#dName").textContent = "PropertyBot"; return; }
+  const D = data.dealer, plots = data.plots;
+  D.agent = D.agent || D.name;
+  document.title = D.name;
+  $("#dName").textContent = D.name;
+  $("#mark").textContent = (D.name || "P").trim()[0].toUpperCase();
+  const socs = [...new Set(plots.map(PB.place).filter(Boolean))];
+  $("#dSub").textContent = [socs.slice(0, 3).join(" · "), D.city].filter(Boolean).join(" · ");
+  $("#office").textContent = D.office ? "Office: " + D.office : (D.city ? "Office in " + D.city + " · address shared on WhatsApp" : "");
+  $("#topWa").href = PB.waLink(D.whatsapp, "Assalam o Alaikum, I saw your properties on your PropertyBot page and want to know more.");
+  const sizes = [...new Set(plots.map(p => p.marla).filter(Boolean))].sort((a, b) => a - b);
+  const lede = $("#lede");
+  const sp = (b, t) => { const s = el("span"); const bb = el("b", null, b); s.append(bb, document.createTextNode(t || "")); lede.append(s); };
+  sp(plots.length + " properties", " available");
+  if (sizes.length) sp(PB.sizeLabel(sizes[0]) + (sizes.length > 1 ? " to " + PB.sizeLabel(sizes[sizes.length - 1]) : ""));
+  sp("Demand negotiable");
+  $("#main").hidden = true; $("#grid").hidden = false;
+
+  // chat
+  const log = $("#log"); let state = {}, last = [];
+  const handoffMsg = () => { const r = PB.requirementText(state, last); return "Assalam o Alaikum, I came from your PropertyBot page." + (r ? " My requirement: " + r + "." : "") + " Please guide me."; };
+  function addBot(r) {
+    const m = el("div", "msg bot", r.text);
+    if (r.plots && r.plots.length) {
+      const mini = el("div", "mini");
+      r.plots.forEach(p => { const b = el("button"); b.type = "button"; b.append(el("span", "r", p.ref + " · " + PB.sizeLabel(p.marla) + " · " + (p.area || p.society)), el("span", "p", PBX.priceText(p))); b.onclick = () => showCard(p.ref); mini.append(b); });
+      m.append(mini);
+    }
+    if (r.handoff) { const a = el("a", "btn btn-wa handoff", "Chat on WhatsApp · WhatsApp par baat karein"); a.href = PB.waLink(D.whatsapp, handoffMsg()); a.target = "_blank"; a.rel = "noopener"; m.append(el("br"), a); }
+    log.append(m); log.scrollTop = log.scrollHeight;
+  }
+  function ask(t) { t = t.trim(); if (!t) return; log.append(el("div", "msg me", t)); const r = PB.reply(t, state, D, plots); state = r.state; if (r.plots.length) last = r.plots; setTimeout(() => addBot(r), 250); }
+  $("#ask").addEventListener("submit", e => { e.preventDefault(); ask($("#q").value); $("#q").value = ""; });
+  const chipQs = sizes.slice(0, 3).map(m => PB.sizeLabel(m) + " available hai?").concat(["Installments?", "Site visit"]);
+  chipQs.forEach(t => { const c = el("button", "chip", t); c.type = "button"; c.onclick = () => ask(t); $("#chips").append(c); });
+  addBot({ text: `Assalam o Alaikum! Main ${D.name} ka assistant hoon. Size, area ya budget batayein, main foran options dikhata hoon.\n\nHello! Ask me about size, area or budget in English or Urdu.`, plots: [], handoff: false });
+
+  // cards
+  sizes.forEach(m => $("#fSize").append(new Option(PB.sizeLabel(m), m)));
+  [...new Set(plots.map(p => p.area || p.society).filter(Boolean))].sort().forEach(a => $("#fArea").append(new Option(a, a)));
+  function render() {
+    const fs = $("#fSize").value, fa = $("#fArea").value, cards = $("#cards"); cards.textContent = "";
+    const list = plots.filter(p => (!fs || p.marla === +fs) && (!fa || (p.area || p.society) === fa)).sort((a, b) => a.marla - b.marla || a.price - b.price);
+    if (!list.length) { cards.append(el("div", "empty", "No properties match. Ask the assistant, the dealer can source more options.")); return; }
+    list.forEach(p => {
+      const c = el("article", "card"); c.id = "card-" + p.ref;
+      const head = el("div"); head.append(el("div", "ref", p.ref + (p.purpose === "rent" ? " · For rent" : "")), el("div", "size", (p.type || "Plot") + " · " + PB.sizeLabel(p.marla)));
+      c.append(PBX.plotIcon(p.marla), head, el("div", "addr", [PB.place(p), p.address].filter(Boolean).join(", ")));
+      if (p.features) { const tg = el("div", "tags"); p.features.split(/,\s*/).forEach(t => tg.append(el("span", "tag", t))); c.append(tg); }
+      const f = el("div", "foot"), pr = el("div", "price"); pr.append(el("small", null, p.purpose === "rent" ? "Rent" : "Demand"), document.createTextNode(PBX.priceText(p)));
+      const a = el("a", "wa-link", "Ask on WhatsApp →"); a.target = "_blank"; a.rel = "noopener";
+      a.href = PB.waLink(D.whatsapp, `Assalam o Alaikum, I'm interested in ${p.ref} (${p.type || "Plot"} ${PB.sizeLabel(p.marla)}, ${[PB.place(p), p.address].filter(Boolean).join(", ")}, ${PBX.priceText(p)}). Is it still available?`);
+      f.append(pr, a); c.append(f); cards.append(c);
+    });
+  }
+  function showCard(ref) { $("#fSize").value = ""; $("#fArea").value = ""; render(); const c = document.getElementById("card-" + ref); if (!c) return; document.querySelectorAll(".card.hl").forEach(x => x.classList.remove("hl")); c.classList.add("hl"); c.scrollIntoView({ behavior: "smooth", block: "center" }); }
+  $("#fSize").onchange = render; $("#fArea").onchange = render; render();
+})();
+</script>
+</body>
+</html>

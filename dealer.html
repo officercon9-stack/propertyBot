@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>My Shop · PropertyBot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap narrow">
+  <header class="brand">
+    <div class="logo"><div class="mark" aria-hidden="true">P</div><div><h1 id="dName">My Shop</h1><p>Dealer page · Meri shop</p></div></div>
+    <a class="btn btn-ghost" id="viewShop" href="#" target="_blank" rel="noopener" hidden>Open my shop</a>
+  </header>
+
+  <!-- login -->
+  <section class="panel" id="login">
+    <h2>Enter your PIN · Apna PIN daalein</h2>
+    <p class="sub">The 4-digit PIN you got with your shop.</p>
+    <form id="loginForm" class="stack">
+      <input class="in" id="pin" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="PIN" aria-label="PIN" style="font-size:1.4rem;letter-spacing:.3em;text-align:center">
+      <button class="btn btn-accent btn-big" type="submit">Open · Kholein</button>
+      <div id="loginMsg" class="err" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <div id="app" class="stack" hidden>
+    <!-- add -->
+    <section class="panel">
+      <h2>➕ Add properties · Naye plots daalein</h2>
+      <p class="sub">Paste the same list you send to customers on WhatsApp. Example: <i>"ME-1 St 49 plot 36, 5 marla, dem 16"</i>. You can also write <i>"P-105 sold"</i>.</p>
+      <textarea class="in" id="paste" placeholder="Apni WhatsApp wali list yahan paste karein…" aria-label="Your property list"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn btn-accent btn-big" id="readBtn" type="button">Read my list · Parhein</button></div>
+      <div id="preview" class="stack" style="margin-top:14px"></div>
+    </section>
+
+    <!-- my plots -->
+    <section class="panel">
+      <h2>🏠 My properties · Meri properties</h2>
+      <p class="sub">Tap <b>SOLD</b> when a property is sold. It disappears from your shop.</p>
+      <div id="mine" class="cards"></div>
+    </section>
+
+    <!-- share -->
+    <section class="panel">
+      <h2>📣 Share your shop</h2>
+      <p class="sub">Send this link to customers, put it on WhatsApp Status and Facebook.</p>
+      <div class="stack">
+        <input class="in" id="shopLink" readonly aria-label="Your shop link">
+        <div class="row">
+          <button class="btn btn-accent" id="copyLink" type="button">Copy link</button>
+          <a class="btn btn-wa" id="shareWa" href="#" target="_blank" rel="noopener">Share on WhatsApp</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- settings -->
+    <section class="panel">
+      <h2>⚙️ Shop details</h2>
+      <form id="details" class="stack">
+        <label class="f">Your name (shown to customers)<input class="in" id="agent" placeholder="e.g. Zeeshan Sahib"></label>
+        <label class="f">Office address<input class="in" id="officeIn" placeholder="e.g. Office 3, Main Boulevard, Margalla Enclave"></label>
+        <div class="row"><button class="btn btn-accent" type="submit">Save</button><span id="detMsg" class="ok" aria-live="polite"></span></div>
+      </form>
+      <p class="note" style="margin-top:14px"><button class="btn btn-ghost" id="logout" type="button">Log out</button></p>
+    </section>
+  </div>
+</div>
+<script src="pb.js"></script>
+<script src="common.js"></script>
+<script>
+(function () {
+  const { el } = PBX, $ = s => document.querySelector(s);
+  const slug = PBX.param("d").toLowerCase();
+  let pin = PBX.store.get("pin_" + slug), shop = null, parsed = [];
+  if (!slug) { $("#loginMsg").textContent = "This link is missing the shop name. Use the link you were sent."; }
+
+  async function call(body) {
+    try { const r = await PBX.post(Object.assign({ d: slug, pin }, body)); if (r.ok && r.dealer) { shop = r; drawMine(); } return r; }
+    catch (e) { return { ok: false, error: "No internet. Try again." }; }
+  }
+
+  $("#loginForm").addEventListener("submit", async e => {
+    e.preventDefault(); pin = $("#pin").value.trim(); $("#loginMsg").textContent = "Checking…";
+    const r = await call({ action: "login" });
+    if (!r.ok) { $("#loginMsg").textContent = r.error === "Wrong PIN" ? "Wrong PIN. Try again." : r.error; return; }
+    PBX.store.set("pin_" + slug, pin); open();
+  });
+  async function auto() { if (!pin) return; const r = await call({ action: "login" }); if (r.ok) open(); }
+  function open() {
+    $("#login").hidden = true; $("#app").hidden = false;
+    const D = shop.dealer; $("#dName").textContent = D.name; document.title = D.name + " · My Shop";
+    const link = PBX.shopUrl(slug); $("#shopLink").value = link; $("#viewShop").href = link; $("#viewShop").hidden = false;
+    $("#shareWa").href = "https://wa.me/?text=" + encodeURIComponent(`🏡 ${D.name}\nHamari properties dekhein aur seedha WhatsApp par baat karein:\n${link}`);
+    $("#agent").value = D.agent || ""; $("#officeIn").value = D.office || "";
+  }
+  $("#copyLink").onclick = e => PBX.copy($("#shopLink").value, e.currentTarget, "Copy link");
+  $("#logout").onclick = () => { PBX.store.del("pin_" + slug); location.reload(); };
+  $("#details").addEventListener("submit", async e => { e.preventDefault(); $("#detMsg").textContent = "Saving…"; const r = await call({ action: "updateDealer", agent: $("#agent").value, office: $("#officeIn").value }); $("#detMsg").textContent = r.ok ? "Saved ✓" : r.error; });
+
+  // ---- my plots
+  function drawMine() {
+    const box = $("#mine"); box.textContent = "";
+    const list = shop.plots.slice().sort((a, b) => (a.sold - b.sold) || a.marla - b.marla || a.price - b.price);
+    if (!list.length) { box.append(el("div", "empty", "No properties yet. Paste your list above to add them.")); return; }
+    list.forEach(p => {
+      const c = el("article", "card" + (p.sold ? " sold" : ""));
+      const head = el("div"); head.append(el("div", "ref", p.ref + (p.sold ? " · SOLD" : "")), el("div", "size", (p.type || "Plot") + " · " + PB.sizeLabel(p.marla)));
+      c.append(PBX.plotIcon(p.marla), head, el("div", "addr", [PB.place(p), p.address].filter(Boolean).join(", ")));
+      const f = el("div", "foot"), pr = el("div", "price"); pr.append(el("small", null, "Demand"), document.createTextNode(PBX.priceText(p)));
+      const acts = el("div", "row");
+      const b = el("button", "btn " + (p.sold ? "btn-ghost" : "btn-danger"), p.sold ? "Back on sale" : "SOLD"); b.type = "button";
+      b.onclick = async () => { b.disabled = true; b.textContent = "…"; const r = await call({ action: "setStatus", ref: p.ref, status: p.sold ? "available" : "sold" }); if (!r.ok) { b.disabled = false; b.textContent = r.error; } };
+      const del = el("button", "btn btn-ghost", "Delete"); del.type = "button";
+      del.onclick = async () => { if (del.dataset.sure) { del.disabled = true; const r = await call({ action: "setStatus", ref: p.ref, status: "deleted" }); if (!r.ok) del.textContent = r.error; } else { del.dataset.sure = 1; del.textContent = "Tap again to delete"; } };
+      acts.append(b, del); f.append(pr, acts); c.append(f); box.append(c);
+    });
+  }
+
+  // ---- add from WhatsApp list
+  $("#readBtn").onclick = () => {
+    parsed = PB.readList($("#paste").value);
+    const box = $("#preview"); box.textContent = "";
+    if (!parsed.length) { box.append(el("div", "err", "I couldn't find any property in this text. Each property needs a size (e.g. 5 marla) or a demand (e.g. dem 16).")); return; }
+    const adds = parsed.filter(p => !p.action), solds = parsed.filter(p => p.action === "sold");
+    box.append(el("div", "ok", `Found ${adds.length} propert${adds.length === 1 ? "y" : "ies"}${solds.length ? " and " + solds.length + " sold" : ""}. Check them, then tap Add.`));
+    const cards = el("div", "cards");
+    adds.forEach((p, i) => {
+      const c = el("article", "card");
+      const head = el("div"); head.append(el("div", "ref", "New " + (i + 1) + (p.purpose === "rent" ? " · For rent" : "")), el("div", "size", (p.type || "Plot") + " · " + (PB.sizeLabel(p.marla) || "size?")));
+      c.append(PBX.plotIcon(p.marla), head, el("div", "addr", [PB.place(p), p.address].filter(Boolean).join(", ") || p.raw));
+      const tg = el("div", "tags");
+      if (p.features) p.features.split(/,\s*/).forEach(t => tg.append(el("span", "tag", t)));
+      tg.append(el("span", "tag", "“" + p.raw.slice(0, 60) + "”"));
+      c.append(tg);
+      const f = el("div", "foot");
+      if (p.missing.includes("size")) { const s = el("input", "mini-in"); s.placeholder = "Marla?"; s.inputMode = "decimal"; s.oninput = () => (p.marla = +s.value || 0); f.append(el("span", "tag warn", "Size?"), s); }
+      if (p.missing.includes("demand")) { const s = el("input", "mini-in"); s.placeholder = "Lakh?"; s.inputMode = "decimal"; s.oninput = () => (p.price = Math.round((+s.value || 0) * 100000)); f.append(el("span", "tag warn", "Demand?"), s); }
+      if (!p.missing.length) { const pr = el("div", "price"); pr.append(el("small", null, "Demand"), document.createTextNode(PBX.priceText(p))); f.append(pr); }
+      const rm = el("button", "btn btn-ghost", "Remove"); rm.type = "button"; rm.onclick = () => { p.skip = true; c.remove(); };
+      f.append(rm); c.append(f); cards.append(c);
+    });
+    solds.forEach(s => cards.append(el("div", "empty", s.ref + " will be marked SOLD")));
+    box.append(cards);
+    const add = el("button", "btn btn-wa btn-big", "Add to my shop · Shop mein daalein"); add.type = "button";
+    const msg = el("div", null); msg.setAttribute("aria-live", "polite");
+    add.onclick = async () => {
+      const go = adds.filter(p => !p.skip);
+      if (go.some(p => !p.marla)) { msg.className = "err"; msg.textContent = "Please fill the missing size (Marla) first."; return; }
+      add.disabled = true; add.textContent = "Adding…";
+      let ok = true;
+      if (go.length) { const r = await call({ action: "addPlots", plots: go }); ok = r.ok; if (!r.ok) msg.textContent = r.error; }
+      for (const s of solds) { const r = await call({ action: "setStatus", ref: s.ref, status: "sold" }); if (!r.ok) { ok = false; msg.textContent = s.ref + ": " + r.error; } }
+      if (ok) { box.textContent = ""; $("#paste").value = ""; box.append(el("div", "ok", `Done ✓ ${go.length} added${solds.length ? ", " + solds.length + " marked sold" : ""}. Your shop is updated.`)); }
+      else { add.disabled = false; add.textContent = "Try again"; msg.className = "err"; }
+    };
+    box.append(add, msg);
+  };
+  auto();
+})();
+</script>
+</body>
+</html>
