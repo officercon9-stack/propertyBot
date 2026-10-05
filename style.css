@@ -88,3 +88,4 @@ form.ask input{flex:1;min-width:0;border:1px solid var(--line);background:var(--
 footer{margin-top:28px;color:var(--muted);font-size:.85rem;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
 .loading{color:var(--muted);padding:40px 0;text-align:center}
 @media (prefers-reduced-motion:no-preference){.msg{animation:in .18s ease-out}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
+.msg.typing{opacity:.6;letter-spacing:.2em;animation:pbblink 1s infinite}@keyframes pbblink{50%{opacity:.25}}

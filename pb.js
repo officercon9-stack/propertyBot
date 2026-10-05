@@ -354,8 +354,10 @@
       parts.push(L(`Maaf kijiye, ye sawal main theek se samajh nahi paya. 🙏 Main properties ke baare mein madad karta hoon: size, area, demand, qist ya visit. Misal: "10 marla 15 lakh tak" ya "corner plot hai?"\n\nKoi aur baat ho to neeche WhatsApp button se ${agent} se seedha poochein.`,
         `Sorry, I didn't quite get that. 🙏 I can help with properties: size, area, demand, installments or a visit. For example: "10 marla up to 15 lakh" or "any corner plot?"\n\nFor anything else, ask ${agent} directly with the WhatsApp button below.`));
       handoff = true;
+      return { text: parts.join("\n\n"), plots: shown, state: s, handoff, unknown: true };
     }
-    return { text: parts.join("\n\n"), plots: shown, state: s, handoff };
+    const complex = /\b(best|behtar|better|invest|investment|profit|munafa|recommend|suggest|mashwara|advice|why|kyun|kyon|compare|difference|farq|school|hospital|masjid|mosque|market|future|safe|risk|legal|approved|noc|loan|bank|family|bachon|overseas|abroad)\b/i.test(text) || text.split(/\s+/).length > 14;
+    return { text: parts.join("\n\n"), plots: shown, state: s, handoff, complex };
   }
 
   function requirementText(s, shown) {
@@ -363,6 +365,6 @@
     return bits.join(", ") + (shown && shown.length ? (bits.length ? ". " : "") + "Interested in " + shown.map(p => p.ref).join(", ") : "");
   }
 
-  const PB = { sizeLabel, money, slugify, waNumber, waLink, place, readList, reply, search, summarize, requirementText, findSociety };
+  const PB = { URDU, sizeLabel, money, slugify, waNumber, waLink, place, readList, reply, search, summarize, requirementText, findSociety };
   if (typeof module !== "undefined" && module.exports) module.exports = PB; else root.PB = PB;
 })(typeof window !== "undefined" ? window : globalThis);

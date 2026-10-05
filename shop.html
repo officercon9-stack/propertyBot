@@ -84,7 +84,26 @@
     if (r.handoff) { const a = el("a", "btn btn-wa handoff", "Chat on WhatsApp · WhatsApp par baat karein"); a.href = PB.waLink(D.whatsapp, handoffMsg()); a.target = "_blank"; a.rel = "noopener"; m.append(el("br"), a); }
     log.append(m); log.scrollTop = log.scrollHeight;
   }
-  function ask(t) { t = t.trim(); if (!t) return; log.append(el("div", "msg me", t)); const r = PB.reply(t, state, D, plots); state = r.state; if (r.plots.length) last = r.plots; setTimeout(() => addBot(r), 250); }
+  const hist = [];
+  async function ask(t) {
+    t = t.trim(); if (!t) return; log.append(el("div", "msg me", t)); log.scrollTop = log.scrollHeight;
+    const r = PB.reply(t, state, D, plots); state = r.state; if (r.plots.length) last = r.plots;
+    if ((r.unknown || r.complex) && PBX.ready()) {
+      const wait = el("div", "msg bot typing", "…"); log.append(wait); log.scrollTop = log.scrollHeight;
+      let a = null;
+      try { a = await PBX.post({ action: "ask", d: slug, q: t, history: hist.slice(-6) }); } catch (e) {}
+      wait.remove();
+      if (a && a.ok && a.text) {
+        const ps = (a.refs || []).map(ref => plots.find(p => p.ref === ref)).filter(Boolean);
+        if (ps.length) last = ps;
+        hist.push({ role: "user", content: t }, { role: "assistant", content: a.text });
+        addBot({ text: a.text, plots: ps, handoff: true });
+        return;
+      }
+    }
+    hist.push({ role: "user", content: t }, { role: "assistant", content: r.text });
+    setTimeout(() => addBot(r), 250);
+  }
   $("#ask").addEventListener("submit", e => { e.preventDefault(); ask($("#q").value); $("#q").value = ""; });
   const chipQs = sizes.slice(0, 3).map(m => PB.sizeLabel(m) + " available hai?").concat(["Installments?", "Site visit"]);
   chipQs.forEach(t => { const c = el("button", "chip", t); c.type = "button"; c.onclick = () => ask(t); $("#chips").append(c); });

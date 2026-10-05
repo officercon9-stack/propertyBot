@@ -36,6 +36,16 @@
       </form>
     </section>
     <section class="panel">
+      <h2>🧠 AI brain <span id="aiState" class="tag"></span></h2>
+      <p class="sub">Paste your Claude API key once (from console.anthropic.com). The bot then answers hard questions like "which plot is best for investment?". About Rs 0.5–1 per AI answer.</p>
+      <form id="aiForm" class="stack">
+        <input class="in" id="aiKey" type="password" autocomplete="off" placeholder="sk-ant-…" aria-label="Claude API key">
+        <label class="f">AI answers per shop per day<input class="in" id="aiLimit" inputmode="numeric" value="60"></label>
+        <button class="btn btn-accent" type="submit">Save AI key</button>
+        <div id="aiMsg" aria-live="polite"></div>
+      </form>
+    </section>
+    <section class="panel">
       <h2>🏪 All shops</h2>
       <div id="list" class="stack"></div>
     </section>
@@ -51,6 +61,7 @@
     const r = await PBX.post({ action: "adminList", admin }).catch(() => ({ ok: false, error: "No internet" }));
     if (!r.ok) { $("#loginMsg").textContent = r.error; return false; }
     PBX.store.set("admin_pin", admin); $("#login").hidden = true; $("#app").hidden = false;
+    $("#aiState").textContent = r.ai ? "ON" : "OFF"; $("#aiLimit").value = r.aiLimit || 60;
     const box = $("#list"); box.textContent = "";
     if (!r.dealers.length) box.append(el("div", "empty", "No dealers yet. Add the first one above."));
     r.dealers.forEach(d => box.append(dealerCard(d)));
@@ -83,6 +94,12 @@
     const w = el("a", "btn btn-wa btn-big", "Send shop link + PIN to dealer on WhatsApp"); w.href = PB.waLink(wa, welcome(d, r.pin)); w.target = "_blank"; w.rel = "noopener";
     ok.append(w); $("#addMsg").append(ok);
     $("#addForm").reset(); $("#nCity").value = "Islamabad"; load();
+  });
+  $("#aiForm").addEventListener("submit", async e => {
+    e.preventDefault(); const m = $("#aiMsg"); m.className = "note"; m.textContent = "Saving…";
+    const r = await PBX.post({ action: "adminSetKey", admin, key: $("#aiKey").value.trim(), limit: +$("#aiLimit").value || 60 }).catch(() => ({ ok: false, error: "No internet" }));
+    if (!r.ok) { m.className = "err"; m.textContent = r.error; return; }
+    $("#aiKey").value = ""; m.className = "ok"; m.textContent = "AI is ON ✓"; load();
   });
   if (admin) load();
 })();
